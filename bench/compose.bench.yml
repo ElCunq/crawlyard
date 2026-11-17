@@ -1,0 +1,12 @@
+# Benchmark overlay: docker compose -f compose.yml -f bench/compose.bench.yml ...
+name: crawlyard
+
+services:
+  fixture:
+    build: ./worker
+    command: ["python", "-u", "/bench/fixture_site.py"]
+    volumes:
+      - ./bench:/bench:ro
+    environment:
+      FAIL_RATE: ${FAIL_RATE:-0.05}
+      LATENCY_MS: ${LATENCY_MS:-200}

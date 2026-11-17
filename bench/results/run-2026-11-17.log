@@ -1,0 +1,15 @@
+host: 12th Gen Intel(R) Core(TM) i7-12700H, 20 threads, 15 GB RAM
+fixture: LATENCY_MS=200 FAIL_RATE=0.05, 600 jobs x 20 items
+workers  secs     jobs/min   items/min    http_503_rate  job_retries  dead   mem/worker   cpu_total
+1        154.8    233        4651         6.0%           0            0      35 MiB       3%
+2        73.5     490        9798         4.3%           1            0      35 MiB       6%
+4        35.9     1004       20080        3.4%           0            0      34 MiB       12%
+8        19.1     1889       37776        4.3%           1            0      34 MiB       21%
+
+== CPU-bound (no latency, no failures) ==
+host: 12th Gen Intel(R) Core(TM) i7-12700H, 20 threads, 15 GB RAM
+fixture: LATENCY_MS=0 FAIL_RATE=0, 2000 jobs x 20 items
+workers  secs     jobs/min   items/min    http_503_rate  job_retries  dead   mem/worker   cpu_total
+1        17.3     6946       138927       0.0%           0            0      36 MiB       74%
+4        5.9      20446      408915       0.0%           0            0      36 MiB       317%
+8        3.7      32080      641602       0.0%           0            0      35 MiB       641%
