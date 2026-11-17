@@ -113,7 +113,7 @@ The other runs use the local fixture `bench/fixture_site.py`, which serves the s
 | 4 | 35.9 s | 1,004 | 20,080 | 3.4% | 0 | 0 | 34 MiB | 12% |
 | 8 | 19.1 s | 1,889 | 37,776 | 4.3% | 1 | 0 | 34 MiB | 21% |
 
-With latency in the way, throughput scales almost linearly with worker count: each worker spends most of its time waiting. The request-level retry absorbed every injected 503. Only two jobs out of 2,400 needed a job-level retry, and none ended in `dead_jobs`.
+With latency in the way, throughput grows almost linearly with worker count, because each worker spends most of its time waiting. The request-level retry absorbed every injected 503. Only two jobs out of 2,400 needed a job-level retry, and none ended in `dead_jobs`.
 
 With the latency and the failures switched off (2,000 jobs), the workers become CPU-bound:
 
@@ -140,7 +140,7 @@ Here the ceiling is HTML parsing (BeautifulSoup with `html.parser`): 8 workers u
 - HTTP Basic sends the password with every request, so it must travel over TLS. Without it, anyone on the path can read it.
 - A [docker-socket-proxy](https://github.com/Tecnativa/docker-socket-proxy) that only allows `containers` and `logs` would shrink the blast radius, but scaling through `docker compose` needs most of the API anyway. If you do not need the panel, do not run it.
 
-Other measures that are in place:
+Other protections:
 
 - Postgres and Redis have no published ports. Their passwords live in `.env` (git-ignored), and compose refuses to start without them.
 - Redis requires a password (`--requirepass`).
@@ -153,7 +153,7 @@ Other measures that are in place:
 - Everything runs on one host, so scaling only adds containers to the same Docker daemon. Spreading workers across machines would need Swarm, Nomad or Kubernetes, plus Redis and Postgres reachable over the network with TLS.
 - There is one shared Basic-auth account, with no roles and no audit log of who scaled what or edited which file.
 - The throughput figures come from a laptop and a local fixture. Against a real site the limit is how fast that site lets you go. Keep `WORKER_DELAY_MS` polite.
-- HTML parsing is the CPU ceiling. Switching to `lxml` would raise it, which the rates above do not call for.
+- HTML parsing is the CPU ceiling. Switching to `lxml` would raise it; at the rates above there has been no need.
 - Log windows can only be reordered by dragging with a mouse; there is no keyboard or touch alternative yet.
 
 ## License
