@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "panel/static/index.html"
+        ],
+        "createdAt": "2026-11-17T18:07:21.492Z",
+        "reason": "assistant triage: table, editor and log panes are full-bleed in their frames by design (Operate-mode tool); segmented control has a 2px inset"
+      }
+    ]
+  }
+}

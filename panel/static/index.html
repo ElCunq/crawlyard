@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="crawlyard: control panel for a self-hosted scraping fleet">
+    <meta name="color-scheme" content="dark">
+    <title>crawlyard</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322c55e' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M4 20V8l8-4 8 4v12M8 20v-6h8v6'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Fira+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <!-- Chart.js first: Monaco's AMD loader defines `define`, and a UMD bundle loaded after it
+         registers as an AMD module instead of setting window.Chart. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js" defer></script>
+</head>
+<body>
+    <header id="app-header">
+        <div class="brand">
+            <svg class="brand-mark" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V8l8-4 8 4v12M8 20v-6h8v6"/></svg>
+            <h1>crawlyard</h1>
+        </div>
+        <div class="header-status">
+            <div class="meter" title="Host CPU">
+                <span class="meter-label">CPU</span>
+                <span class="meter-track"><span id="cpu-bar" class="meter-fill"></span></span>
+                <span id="cpu-text" class="meter-val">0%</span>
+            </div>
+            <div class="meter" id="ram-meter">
+                <span class="meter-label">RAM</span>
+                <span class="meter-track"><span id="ram-bar" class="meter-fill"></span></span>
+                <span id="ram-text" class="meter-val">0%</span>
+            </div>
+            <span id="docker-status" class="pill">Docker</span>
+            <span id="redis-status" class="pill">Redis</span>
+            <span class="pill pill-count"><span id="active-workers">0</span> running</span>
+        </div>
+    </header>
+
+    <nav id="tab-nav" role="tablist" aria-label="Sections">
+        <button role="tab" class="tab-btn" data-tab="fleet" id="tab-fleet-btn" aria-controls="tab-fleet" aria-selected="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            Fleet
+        </button>
+        <button role="tab" class="tab-btn" data-tab="ide" id="tab-ide-btn" aria-controls="tab-ide" aria-selected="false" tabindex="-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>
+            Code
+        </button>
+        <button role="tab" class="tab-btn" data-tab="redis" id="tab-redis-btn" aria-controls="tab-redis" aria-selected="false" tabindex="-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            Queues
+        </button>
+        <button role="tab" class="tab-btn" data-tab="logs" id="tab-logs-btn" aria-controls="tab-logs" aria-selected="false" tabindex="-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+            Logs
+        </button>
+        <button role="tab" class="tab-btn" data-tab="stats" id="tab-stats-btn" aria-controls="tab-stats" aria-selected="false" tabindex="-1">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            Stats
+        </button>
+    </nav>
+
+    <main id="app-main">
+        <!-- Fleet -->
+        <section id="tab-fleet" class="tab-content active" role="tabpanel" aria-labelledby="tab-fleet-btn">
+            <div class="fleet-controls">
+                <form class="panel" id="scale-form">
+                    <h2>Scale a service</h2>
+                    <div class="field">
+                        <label for="fleet-compose-select">Compose file</label>
+                        <select id="fleet-compose-select" class="input"></select>
+                    </div>
+                    <div class="field">
+                        <label for="fleet-service-select">Service</label>
+                        <select id="fleet-service-select" class="input"></select>
+                    </div>
+                    <div class="field">
+                        <label for="scale-input">Containers</label>
+                        <div class="stepper">
+                            <button type="button" class="stepper-btn" id="scale-down-btn" aria-label="One fewer">−</button>
+                            <input type="number" id="scale-input" min="0" max="50" value="4" inputmode="numeric">
+                            <button type="button" class="stepper-btn" id="scale-up-btn" aria-label="One more">+</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="scale-btn">Apply scale</button>
+                </form>
+
+                <div class="panel">
+                    <h2>Stop</h2>
+                    <p class="panel-desc">Stops every container in the selected compose file. Volumes and data are kept.</p>
+                    <button class="btn btn-danger" id="hard-stop-btn">Stop all containers</button>
+                    <p class="panel-desc panel-desc-gap">Removes containers in the <code>exited</code> state left behind by scaling down.</p>
+                    <button class="btn btn-ghost" id="prune-exited-btn">Prune exited containers</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2>Services</h2>
+                    <button class="btn btn-ghost btn-sm" id="refresh-compose-btn">Refresh</button>
+                </div>
+                <div id="compose-services-grid" class="compose-grid">
+                    <p class="empty">Scanning compose files…</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2>Containers</h2>
+                    <button class="btn btn-ghost btn-sm" id="refresh-workers-btn">Refresh</button>
+                </div>
+                <div class="table-scroll">
+                    <table id="worker-table">
+                        <thead>
+                            <tr><th scope="col">Status</th><th scope="col">Container</th><th scope="col">Service</th><th scope="col">Image</th><th scope="col">Started</th><th scope="col" class="num">Restarts</th></tr>
+                        </thead>
+                        <tbody id="worker-table-body">
+                            <tr class="empty-row"><td colspan="6">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Code -->
+        <section id="tab-ide" class="tab-content" role="tabpanel" aria-labelledby="tab-ide-btn" hidden>
+            <div class="ide-layout">
+                <div class="ide-sidebar">
+                    <div class="sidebar-header">
+                        <span>Files</span>
+                        <div class="sidebar-actions">
+                            <button class="icon-btn" id="new-file-btn" aria-label="New file" title="New file">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></svg>
+                            </button>
+                            <button class="icon-btn" id="refresh-tree-btn" aria-label="Refresh file list" title="Refresh">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 4v6h-6M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="file-tree" class="file-tree" role="tree" aria-label="Files"></div>
+                </div>
+
+                <div class="ide-editor-area">
+                    <div class="editor-tabs" id="editor-tabs">
+                        <p class="editor-tabs-empty">Open a file from the list.</p>
+                    </div>
+                    <div class="ide-toolbar" id="ide-toolbar" hidden>
+                        <div class="ide-file-info">
+                            <span id="ide-filename">–</span>
+                            <span id="ide-status" class="tag" role="status">Saved</span>
+                        </div>
+                        <div class="ide-toolbar-actions">
+                            <label for="deploy-service-select" class="visually-hidden">Restart after saving</label>
+                            <select id="deploy-service-select" class="input input-sm input-auto">
+                                <option value="">Don't restart</option>
+                                <option value="worker">Restart worker</option>
+                                <option value="proxy-manager">Restart proxy-manager</option>
+                            </select>
+                            <button class="btn btn-ghost btn-sm" id="test-code-btn">Check syntax</button>
+                            <button class="btn btn-primary btn-sm" id="deploy-btn">Save <kbd>Ctrl S</kbd></button>
+                        </div>
+                    </div>
+                    <div id="monaco-editor-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Queues -->
+        <section id="tab-redis" class="tab-content" role="tabpanel" aria-labelledby="tab-redis-btn" hidden>
+            <div class="queue-grid" id="queue-grid"></div>
+
+            <div class="redis-columns">
+                <form class="panel" id="push-form">
+                    <h2>Add jobs</h2>
+                    <label for="url-bulk-input" class="panel-desc">One per line: a page URL, or a JSON job like <code>{"scraper":"books","url":"…"}</code></label>
+                    <textarea id="url-bulk-input" class="input textarea" rows="6" placeholder="https://books.toscrape.com/catalogue/page-1.html"></textarea>
+                    <div class="row">
+                        <label for="push-queue-select" class="visually-hidden">Target queue</label>
+                        <select id="push-queue-select" class="input input-auto">
+                            <option value="scrape_queue">scrape_queue</option>
+                            <option value="proxy_queue">proxy_queue</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary">Add to queue</button>
+                    </div>
+                </form>
+
+                <div class="panel">
+                    <div class="section-header section-header-flush">
+                        <h2>Contents</h2>
+                        <span id="peek-queue-name" class="tag">none selected</span>
+                    </div>
+                    <ol id="peek-list" class="peek-list">
+                        <li class="empty">Choose "Show" on a queue above.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Redis server</h2>
+                <dl class="info-grid">
+                    <div><dt>Memory</dt><dd id="redis-mem">–</dd></div>
+                    <div><dt>Clients</dt><dd id="redis-clients">–</dd></div>
+                    <div><dt>Uptime</dt><dd id="redis-uptime">–</dd></div>
+                </dl>
+            </div>
+        </section>
+
+        <!-- Stats -->
+        <section id="tab-stats" class="tab-content" role="tabpanel" aria-labelledby="tab-stats-btn" hidden>
+            <dl class="stats-grid">
+                <div class="stat"><dt>Items stored</dt><dd id="stat-items">–</dd></div>
+                <div class="stat"><dt>New in the last hour</dt><dd id="stat-new">–</dd></div>
+                <div class="stat"><dt>Jobs done / errors / dead</dt><dd id="stat-jobs">–</dd></div>
+                <div class="stat"><dt>Database size</dt><dd id="stat-db-size">–</dd></div>
+            </dl>
+            <div class="panel">
+                <div class="section-header section-header-flush">
+                    <h2>New items per hour</h2>
+                    <span class="panel-desc" id="stats-updated">updates every 10 s</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="harvestChart" role="img" aria-label="Line chart of items first seen in the trailing hour, sampled every 10 seconds"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Logs -->
+        <section id="tab-logs" class="tab-content tab-content-flush" role="tabpanel" aria-labelledby="tab-logs-btn" hidden>
+            <div class="logs-layout">
+                <div class="logs-sidebar">
+                    <div class="sidebar-header">
+                        <span>Containers</span>
+                        <div class="sidebar-actions">
+                            <button class="btn btn-ghost btn-xs" id="logs-select-all">All running</button>
+                            <button class="btn btn-ghost btn-xs" id="logs-clear-selection">None</button>
+                        </div>
+                    </div>
+                    <div id="logs-container-list" class="logs-container-list">
+                        <p class="empty">Loading…</p>
+                    </div>
+                </div>
+
+                <div class="logs-main-area">
+                    <div class="logs-toolbar">
+                        <div class="segmented" role="group" aria-label="Layout">
+                            <button class="btn btn-sm" id="mode-split-btn" aria-pressed="true">Split</button>
+                            <button class="btn btn-sm" id="mode-merge-btn" aria-pressed="false">Merged</button>
+                        </div>
+                        <label for="log-search-input" class="visually-hidden">Filter logs</label>
+                        <input type="search" id="log-search-input" class="input input-sm search-input" placeholder="Filter (text or regex)">
+                        <label for="split-cols-select" class="visually-hidden">Columns</label>
+                        <select id="split-cols-select" class="input input-sm input-auto">
+                            <option value="auto">Auto columns</option>
+                            <option value="1">1 column</option>
+                            <option value="2">2 columns</option>
+                            <option value="3">3 columns</option>
+                            <option value="4">4 columns</option>
+                        </select>
+                        <label class="toggle"><input type="checkbox" id="auto-scroll-toggle" checked> Follow</label>
+                        <label class="toggle"><input type="checkbox" id="wrap-lines-toggle" checked> Wrap</label>
+                        <button class="btn btn-ghost btn-xs" id="clear-terminal-btn">Clear</button>
+                    </div>
+                    <div id="log-display-container" class="log-display-container split-mode"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <dialog id="modal" aria-labelledby="modal-title">
+        <form method="dialog" id="modal-form">
+            <h3 id="modal-title">New file</h3>
+            <label for="modal-input" class="panel-desc">Path relative to the project root</label>
+            <input type="text" id="modal-input" class="input" placeholder="worker/my_scraper.py" required>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" id="modal-cancel-btn">Cancel</button>
+                <button type="submit" class="btn btn-primary" value="ok">Create</button>
+            </div>
+        </form>
+    </dialog>
+
+    <div id="toast-container" role="status" aria-live="polite"></div>
+    <script src="/app.js" defer></script>
+</body>
+</html>
