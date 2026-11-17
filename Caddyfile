@@ -1,0 +1,5 @@
+# With PANEL_DOMAIN=localhost Caddy issues a certificate from its own local CA.
+# With a real domain pointing at this host it fetches one from Let's Encrypt.
+{$PANEL_DOMAIN} {
+	reverse_proxy panel:9090
+}

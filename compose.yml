@@ -1,0 +1,92 @@
+# A fixed project name keeps `docker compose` calls from the host and from the panel
+# container pointed at the same containers.
+name: crawlyard
+
+x-app-env: &app-env
+  REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379/0
+  DATABASE_URL: postgresql://${DB_USER:?set DB_USER in .env}:${DB_PASSWORD:?set DB_PASSWORD in .env}@postgres:5432/${DB_NAME:-crawlyard}
+
+services:
+  # Postgres and Redis publish no ports: only containers on the internal network reach them.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-crawlyard}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME:-crawlyard}"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep PONG"]
+      interval: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+  worker:
+    build: ./worker
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      WORKER_DELAY_MS: ${WORKER_DELAY_MS:-1000}
+      USE_PROXY: ${USE_PROXY:-false}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  panel:
+    build: ./panel
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      PANEL_USER: ${PANEL_USER:-admin}
+      PANEL_PASSWORD: ${PANEL_PASSWORD:?set PANEL_PASSWORD in .env}
+      BASE_CODE_DIR: /opt/crawlyard
+    volumes:
+      # Root-equivalent access to the host. Read the "Security" section of the README.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/opt/crawlyard
+    ports:
+      - "127.0.0.1:${PANEL_PORT:-9090}:9090"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  # TLS in front of the panel. `docker compose --profile tls up -d`
+  caddy:
+    image: caddy:2.8-alpine
+    profiles: [tls]
+    restart: unless-stopped
+    environment:
+      PANEL_DOMAIN: ${PANEL_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    ports:
+      - "443:443"
+      - "80:80"
+
+  proxy-manager:
+    build: ./worker
+    profiles: [proxy]
+    restart: unless-stopped
+    command: ["python", "-u", "proxy_manager.py"]
+    environment:
+      <<: *app-env
+
+volumes:
+  pg-data:
+  redis-data:
+  caddy-data:
