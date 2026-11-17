@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+# BLE = blind `except Exception`, E722 = bare `except:`; both are the habits this repo moved away from.
+select = ["E", "F", "W", "I", "B", "BLE", "UP", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["scrapers", "conftest", "fixture_site"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]

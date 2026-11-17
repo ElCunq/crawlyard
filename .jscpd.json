@@ -1,0 +1,7 @@
+{
+  "threshold": 3,
+  "minTokens": 50,
+  "reporters": ["console"],
+  "ignore": ["**/.venv/**", "**/node_modules/**", "**/.impeccable/**", "**/bench/results/**"],
+  "format": ["python", "javascript", "css", "markup"]
+}
